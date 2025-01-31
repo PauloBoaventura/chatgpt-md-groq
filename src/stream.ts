@@ -1,6 +1,6 @@
 import { Editor, Notice, Platform } from "obsidian";
 import { unfinishedCodeBlock } from "src/Utilities/TextHelpers";
-import { AI_SERVICE_OLLAMA, AI_SERVICE_OPENAI, ROLE_ASSISTANT, ROLE_HEADER } from "src/Constants";
+import { AI_SERVICE_ANTHROPIC, AI_SERVICE_OLLAMA, AI_SERVICE_OPENAI, ROLE_ASSISTANT, ROLE_HEADER } from "src/Constants";
 import { OpenAIStreamPayload } from "src/Services/OpenAiService";
 import { OllamaStreamPayload } from "src/Services/OllamaService";
 
@@ -88,7 +88,7 @@ export class StreamManager {
     editor: Editor,
     url: string,
     options: OpenAIStreamPayload | OllamaStreamPayload,
-    headers: Record<string, string>,
+    headers: { "x-api-key": string | undefined; "anthropic-version": string; "content-type": string },
     aiService: string,
     setAtCursor: boolean | undefined,
     headingPrefix: string
@@ -102,11 +102,27 @@ export class StreamManager {
 
       this.abortController = new AbortController();
 
-      const response = await fetch(url, {
-        headers,
+      // const response = await fetch(url, {
+      //   headers,
+      //   method: "POST",
+      //   body: JSON.stringify(options),
+      //   signal: this.abortController.signal,
+      //   mode: "no-cors",
+      // });
+
+      const response = await fetch("https://api.anthropic.com/v1/messages", {
         method: "POST",
-        body: JSON.stringify(options),
-        signal: this.abortController.signal,
+        headers,
+        body: JSON.stringify({
+          model: "claude-3-opus-20240229",
+          messages: [
+            {
+              role: "user",
+              content: prompt,
+            },
+          ],
+        }),
+        mode: "no-cors",
       });
 
       if (!response.ok) throw new Error("Network response was not ok");
@@ -126,6 +142,25 @@ export class StreamManager {
           if (!line.trim()) continue;
 
           if (aiService == AI_SERVICE_OPENAI) {
+            if (!line.startsWith("data: ")) continue;
+            const data = line.slice(6); // Remove "data: " prefix
+
+            if (data === "[DONE]") {
+              return this.finalizeText(editor, txt, initialCursor, setAtCursor);
+            }
+
+            try {
+              const payload = JSON.parse(data);
+              const text = payload.choices[0].delta.content;
+              if (text) {
+                const cursor = editor.getCursor();
+                this.handleEditorTextUpdate(editor, text, cursor);
+                txt += text;
+              }
+            } catch (error) {
+              console.error("Error parsing OpenAI JSON:", error);
+            }
+          } else if (aiService == AI_SERVICE_ANTHROPIC) {
             if (!line.startsWith("data: ")) continue;
             const data = line.slice(6); // Remove "data: " prefix
 

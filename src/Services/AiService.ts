@@ -2,9 +2,10 @@ import { Message } from "src/Models/Message";
 import { Editor, MarkdownView } from "obsidian";
 import { OpenAIConfig, OpenAiService } from "src/Services/OpenAiService";
 import { StreamManager } from "src/stream";
-import { AI_SERVICE_OLLAMA, AI_SERVICE_OPENAI } from "src/Constants";
+import { AI_SERVICE_ANTHROPIC, AI_SERVICE_OLLAMA, AI_SERVICE_OPENAI } from "src/Constants";
 import { OllamaConfig, OllamaService } from "src/Services/OllamaService";
 import { EditorService } from "src/Services/EditorService";
+import { AnthropicService } from "./AnthropicService";
 
 export interface IAiApiService {
   callAIAPI(
@@ -28,6 +29,8 @@ export const getAiApiService = (streamManager: StreamManager, settings: any): IA
   switch (settings) {
     case AI_SERVICE_OPENAI:
       return new OpenAiService(streamManager);
+    case AI_SERVICE_ANTHROPIC:
+      return new AnthropicService(streamManager);
     case AI_SERVICE_OLLAMA:
       return new OllamaService(streamManager);
     default:

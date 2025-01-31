@@ -20,6 +20,7 @@ export const CLEAR_CHAT_COMMAND_ID = "clear-chat";
 export const ROLE_IDENTIFIER = "role::";
 export const AI_SERVICE_OPENAI = "openai";
 export const AI_SERVICE_OLLAMA = "ollama";
+export const AI_SERVICE_ANTHROPIC = "anthropic";
 
 export const ROLE_HEADER = (headingPrefix: string, role: string) =>
   `\n\n${HORIZONTAL_LINE_MD}\n\n${headingPrefix}${ROLE_IDENTIFIER}${role}\n\n`;

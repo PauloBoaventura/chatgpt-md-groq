@@ -13,6 +13,7 @@ import { ChatGPT_MDSettings } from "src/Models/Config";
 import { ChatTemplates } from "src/Views/ChatTemplates";
 import { DEFAULT_OPENAI_CONFIG } from "src/Services/OpenAiService";
 import {
+  AI_SERVICE_ANTHROPIC,
   AI_SERVICE_OLLAMA,
   AI_SERVICE_OPENAI,
   CHAT_FOLDER_TYPE,
@@ -27,6 +28,7 @@ import {
   ROLE_USER,
 } from "src/Constants";
 import { DEFAULT_OLLAMA_API_CONFIG } from "src/Services/OllamaService";
+import { DEFAULT_ANTHROPIC_CONFIG } from "./AnthropicService";
 
 export class EditorService {
   constructor(private app: App) {}
@@ -279,6 +281,7 @@ export class EditorService {
       const provider = trimmedModel.split("@")[0];
       if (["local", AI_SERVICE_OLLAMA].includes(provider)) return AI_SERVICE_OLLAMA;
       if (provider === AI_SERVICE_OPENAI) return AI_SERVICE_OPENAI;
+      if (provider === AI_SERVICE_ANTHROPIC) return AI_SERVICE_ANTHROPIC;
     }
 
     if (trimmedUrl.startsWith("http://localhost") || trimmedUrl.startsWith("http://127.0.0.1")) {
@@ -309,7 +312,23 @@ export class EditorService {
 
     const aiService = this.aiProviderFromUrl(metaMatter.url, metaMatter.model);
 
-    const defaultConfig = aiService == AI_SERVICE_OPENAI ? DEFAULT_OPENAI_CONFIG : DEFAULT_OLLAMA_API_CONFIG;
+    let defaultConfig;
+
+    switch (aiService) {
+      case AI_SERVICE_OPENAI:
+        defaultConfig = DEFAULT_OPENAI_CONFIG;
+        break;
+      case AI_SERVICE_ANTHROPIC:
+        defaultConfig = DEFAULT_ANTHROPIC_CONFIG;
+        break;
+      case AI_SERVICE_OLLAMA:
+        defaultConfig = DEFAULT_OLLAMA_API_CONFIG;
+        break;
+      default:
+        // Handle unexpected service types here, if needed.
+        console.warn(`Unknown aiService: ${aiService}`);
+        return null; // Or throw an error, depending on your needs
+    }
 
     return {
       ...defaultConfig,
