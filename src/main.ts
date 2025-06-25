@@ -197,7 +197,7 @@ export default class ChatGPT_MD extends Plugin {
           console.log("🔍 Iniciando teste da configuração Groq...");
           console.log("🔍 Configurações carregadas:", {
             hasGroqApiKey: !!settings.groqApiKey,
-            groqUrl: settings.groqUrl,
+            groqUrl: settings.groqUrl || "https://api.groq.com",
             groqApiKeyLength: settings.groqApiKey?.length || 0
           });
           

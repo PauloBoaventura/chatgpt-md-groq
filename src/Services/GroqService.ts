@@ -23,7 +23,7 @@ export const DEFAULT_GROQ_CONFIG: GroqConfig = {
   temperature: 0.5,
   title: "Untitled",
   top_p: 1,
-  url: "https://api.groq.com/openai/v1",
+  url: "https://api.groq.com",
 };
 
 export const fetchAvailableGroqModels = async (url: string, apiKey: string) => {
@@ -40,7 +40,7 @@ export const fetchAvailableGroqModels = async (url: string, apiKey: string) => {
     const headers = apiAuthService.createAuthHeaders(apiKey, AI_SERVICE_GROQ);
 
     // Use the correct endpoint for Groq models
-    const models = await apiService.makeGetRequest(`${url}/models`, headers, AI_SERVICE_GROQ);
+    const models = await apiService.makeGetRequest(`${url}/openai/v1/models`, headers, AI_SERVICE_GROQ);
 
     return models.data
       .filter(
@@ -289,7 +289,7 @@ export class GroqService extends BaseAiService implements IAiApiService {
 
       // Usar URL das configurações ou padrão
       const baseUrl = settings.groqUrl || DEFAULT_GROQ_CONFIG.url;
-      const endpoint = `${baseUrl}/models`;
+      const endpoint = `${baseUrl}/openai/v1/models`;
       
       console.log("[GroqService] Testing connection to:", endpoint);
       console.log("[GroqService] API Key format:", apiKey.substring(0, 10) + "...");
@@ -390,7 +390,7 @@ export class GroqService extends BaseAiService implements IAiApiService {
 
     // Obter endpoint das configurações ou usar padrão
     const baseUrl = settings.groqUrl || DEFAULT_GROQ_CONFIG.url;
-    const endpoint = `${baseUrl}/chat/completions`;
+    const endpoint = `${baseUrl}/openai/v1/chat/completions`;
     
     // Obter modelo das configurações ou usar padrão
     const modelToUse = model || 
