@@ -90,12 +90,33 @@ export class GroqService extends BaseAiService implements IAiApiService {
   }
 
   getApiKeyFromSettings(settings: ChatGPT_MDSettings): string {
-    return this.apiAuthService.getApiKey(settings, AI_SERVICE_GROQ);
+    // Tentar múltiplas formas de obter a API key
+    const apiKey = settings.groqApiKey || 
+                   (settings as any).groq?.apiKey || 
+                   this.apiAuthService.getApiKey(settings, AI_SERVICE_GROQ);
+    
+    console.log("[GroqService] API Key obtida:", apiKey ? apiKey.substring(0, 10) + "..." : "NENHUMA");
+    return apiKey || "";
   }
 
   createPayload(config: GroqConfig, messages: Message[]): GroqStreamPayload {
     // Remove the provider prefix if it exists in the model name
     const modelName = config.model.includes("@") ? config.model.split("@")[1] : config.model;
+    
+    // Validar se o modelo é suportado pela Groq
+    const supportedModels = [
+      "mixtral-8x7b-32768",
+      "llama3-70b-8192", 
+      "llama3-8b-8192",
+      "gemma-7b-it",
+      "llama2-70b-4096"
+    ];
+    
+    if (!supportedModels.some(model => modelName.includes(model.split('-')[0]))) {
+      console.warn("[GroqService] Modelo pode não ser suportado:", modelName);
+    }
+
+    console.log("[GroqService] Modelo selecionado:", modelName);
 
     // Process system commands if they exist
     let processedMessages = messages;
@@ -242,18 +263,33 @@ export class GroqService extends BaseAiService implements IAiApiService {
    */
   async testConfiguration(settings: ChatGPT_MDSettings): Promise<{ success: boolean; message: string }> {
     try {
+      console.log("[GroqService] Iniciando teste de configuração...");
+      console.log("[GroqService] Configurações disponíveis:", {
+        groqApiKey: !!settings.groqApiKey,
+        groqUrl: settings.groqUrl,
+        groqConfig: !!(settings as any).groq
+      });
+      
       const apiKey = this.getApiKeyFromSettings(settings);
       
       if (!apiKey || apiKey.trim() === "") {
-        return { success: false, message: "❌ API Key da Groq não está configurada no plugin." };
+        return { 
+          success: false, 
+          message: "❌ API Key da Groq não está configurada no plugin.\nVerifique se foi adicionada na seção 'API Keys' das configurações." 
+        };
       }
 
       // Validar formato da API Key
       if (!apiKey.startsWith("gsk_")) {
-        return { success: false, message: "❌ API Key da Groq parece estar em formato incorreto. Deve começar com 'gsk_'." };
+        return { 
+          success: false, 
+          message: `❌ API Key da Groq parece estar em formato incorreto.\nEsperado: gsk_...\nEncontrado: ${apiKey.substring(0, 10)}...` 
+        };
       }
 
-      const endpoint = "https://api.groq.com/openai/v1/models";
+      // Usar URL das configurações ou padrão
+      const baseUrl = settings.groqUrl || DEFAULT_GROQ_CONFIG.url;
+      const endpoint = `${baseUrl}/models`;
       
       console.log("[GroqService] Testing connection to:", endpoint);
       console.log("[GroqService] API Key format:", apiKey.substring(0, 10) + "...");
@@ -331,16 +367,42 @@ export class GroqService extends BaseAiService implements IAiApiService {
   ): Promise<string> {
     const apiKey = this.getApiKeyFromSettings(settings);
     
+    console.log("[GroqService] Configurações recebidas:", {
+      hasApiKey: !!apiKey,
+      apiKeyFormat: apiKey ? apiKey.substring(0, 10) + "..." : "NENHUMA",
+      model: model || "padrão",
+      settingsGroqApiKey: !!settings.groqApiKey,
+      settingsGroqUrl: settings.groqUrl || "não definida"
+    });
+    
     if (!apiKey || apiKey.trim() === "") {
+      console.error("[GroqService] API Key não encontrada nas configurações:", {
+        groqApiKey: settings.groqApiKey,
+        groqConfig: (settings as any).groq
+      });
       throw new Error("❌ API Key Groq ausente. Configure nas configurações do plugin.");
     }
 
     if (!apiKey.startsWith("gsk_")) {
+      console.error("[GroqService] Formato da API Key inválido:", apiKey.substring(0, 15));
       throw new Error("❌ API Key Groq inválida. Deve começar com 'gsk_'.");
     }
 
-    const endpoint = "https://api.groq.com/openai/v1/chat/completions";
-    const modelToUse = model || (settings as any).groqModel || DEFAULT_GROQ_CONFIG.model;
+    // Obter endpoint das configurações ou usar padrão
+    const baseUrl = settings.groqUrl || DEFAULT_GROQ_CONFIG.url;
+    const endpoint = `${baseUrl}/chat/completions`;
+    
+    // Obter modelo das configurações ou usar padrão
+    const modelToUse = model || 
+                       settings.groq?.model || 
+                       (settings as any).groqModel || 
+                       DEFAULT_GROQ_CONFIG.model;
+    
+    console.log("[GroqService] Configuração da chamada:", {
+      endpoint,
+      modelToUse,
+      baseUrl
+    });
     const max_tokens = 512;
     const temperature = 0.7;
     const stream = false;

@@ -194,6 +194,13 @@ export default class ChatGPT_MD extends Plugin {
       callback: async () => {
         try {
           const settings = settingsService.getSettings();
+          console.log("🔍 Iniciando teste da configuração Groq...");
+          console.log("🔍 Configurações carregadas:", {
+            hasGroqApiKey: !!settings.groqApiKey,
+            groqUrl: settings.groqUrl,
+            groqApiKeyLength: settings.groqApiKey?.length || 0
+          });
+          
           const groqService = this.serviceLocator.getAiApiService('groq') as any;
           
           if (groqService && typeof groqService.testConfiguration === 'function') {
@@ -204,7 +211,7 @@ export default class ChatGPT_MD extends Plugin {
               new Notice("✅ " + result.message.split('\n')[0]);
               console.log("✅ Teste da configuração da Groq:", result.message);
             } else {
-              new Notice("❌ " + result.message);
+              new Notice("❌ " + result.message.split('\n')[0]);
               console.error("❌ Teste da configuração da Groq falhou:", result.message);
             }
           } else {
@@ -213,7 +220,7 @@ export default class ChatGPT_MD extends Plugin {
           }
         } catch (error) {
           console.error("❌ Erro ao testar configuração da Groq:", error);
-          new Notice("❌ Erro ao testar configuração da Groq: " + error);
+          new Notice("❌ Erro ao testar configuração da Groq: " + (error as Error).message);
         }
       }
     });

@@ -117,7 +117,7 @@ export const DEFAULT_SETTINGS: ChatGPT_MDSettings = {
   openrouterUrl: DEFAULT_OPENROUTER_CONFIG.url,
   ollamaUrl: DEFAULT_OLLAMA_CONFIG.url,
   lmstudioUrl: DEFAULT_LMSTUDIO_CONFIG.url,
-  groqUrl: "https://api.groq.com/openai/v1",
+  groqUrl: DEFAULT_GROQ_CONFIG.url,
 
   // Folders
   chatFolder: "ChatGPT_MD/chats",
