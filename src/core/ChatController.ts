@@ -7,72 +7,95 @@ import { ApiAuthService } from "../Services/ApiAuthService";
 import { ApiResponseParser } from "../Services/ApiResponseParser";
 import { Message } from "../Models/Message";
 import { DEFAULT_GROQ_CONFIG } from "../Services/GroqService";
+import { ChatGPT_MDSettings } from "../Models/Config";
+import { Plugin } from "obsidian";
 
 const chat = new ChatSession();
 
-// Criar instâncias dos serviços necessários
-const notificationService = new NotificationService();
-const errorService = new ErrorService(notificationService);
-const apiService = new ApiService(errorService, notificationService);
-const apiAuthService = new ApiAuthService(notificationService);
-const apiResponseParser = new ApiResponseParser(notificationService);
+// Variáveis globais para manter as instâncias
+let groqService: GroqService | null = null;
+let currentSettings: ChatGPT_MDSettings | null = null;
+let currentPlugin: Plugin | null = null;
 
-// Criar instância do GroqService com todos os serviços
-const groq = new GroqService(
-  errorService,
-  notificationService,
-  apiService,
-  apiAuthService,
-  apiResponseParser
-);
+// Função para inicializar o controller com configurações
+export function initializeChatController(settings: ChatGPT_MDSettings, plugin: Plugin): void {
+  currentSettings = settings;
+  currentPlugin = plugin;
+  
+  console.log("[ChatController] Inicializando com configurações:", {
+    hasGroqApiKey: !!settings.groqApiKey,
+    groqUrl: settings.groqUrl || "padrão"
+  });
 
-export async function handleChatInteraction(input: string): Promise<string> {
+  // Criar instâncias dos serviços necessários
+  const notificationService = new NotificationService();
+  const errorService = new ErrorService(notificationService);
+  const apiService = new ApiService(errorService, notificationService);
+  const apiAuthService = new ApiAuthService(notificationService);
+  const apiResponseParser = new ApiResponseParser(notificationService);
+
+  // Criar instância do GroqService com todos os serviços
+  groqService = new GroqService(
+    errorService,
+    notificationService,
+    apiService,
+    apiAuthService,
+    apiResponseParser
+  );
+}
+
+export async function handleChatInteraction(input: string, settings?: ChatGPT_MDSettings, plugin?: Plugin): Promise<string> {
   try {
+    // Usar configurações fornecidas ou as globais
+    const settingsToUse = settings || currentSettings;
+    const pluginToUse = plugin || currentPlugin;
+    
+    if (!settingsToUse) {
+      throw new Error("❌ Configurações não disponíveis. Inicialize o ChatController primeiro.");
+    }
+
+    if (!pluginToUse) {
+      throw new Error("❌ Plugin não disponível. Inicialize o ChatController primeiro.");
+    }
+
+    // Verificar se o GroqService foi inicializado
+    if (!groqService) {
+      console.log("[ChatController] GroqService não inicializado, criando novo...");
+      initializeChatController(settingsToUse, pluginToUse);
+    }
+
+    if (!groqService) {
+      throw new Error("❌ Falha ao inicializar GroqService");
+    }
+
+    console.log("[ChatController] Processando input:", input.substring(0, 50) + "...");
+
     // Adicionar mensagem do usuário ao histórico
     chat.addMessage("user", input);
 
-    // Preparar mensagens para a API
-    const messages: Message[] = chat.getMessages().map(msg => ({
-      role: msg.role,
-      content: msg.content
-    }));
-
-    // Configuração do Groq
-    const config = {
-      ...DEFAULT_GROQ_CONFIG,
-      model: "mixtral-8x7b-32768",
-      max_tokens: 200,
-      temperature: 0.5,
-      stream: false
-    };
-
-    // Chamar a API do Groq
-    const response = await groq.callAIAPI(
-      messages,
-      config,
-      "🤖 ",
-      config.url,
-      undefined, // editor (não necessário para esta função)
-      false, // generateAtCursor
-      undefined, // apiKey (será obtido das configurações)
-      undefined // settings
+    // Usar o método chatWithFallback que tem melhor tratamento de erro
+    const response = await groqService.chatWithFallback(
+      input,
+      settingsToUse,
+      pluginToUse,
+      "mixtral-8x7b-32768"
     );
 
-    // Processar resposta
-    if (response && response.fullString) {
-      const output = response.fullString.replace(/^🤖\s*/, "").trim();
+    if (response && response.trim()) {
+      const output = response.trim();
       chat.addMessage("assistant", output);
+      console.log("[ChatController] Resposta recebida com sucesso");
       return output;
     } else {
-      throw new Error("Resposta vazia da API");
+      throw new Error("Resposta vazia da API Groq");
     }
 
   } catch (error: unknown) {
-    console.error("Erro no chat interativo:", error);
+    console.error("[ChatController] Erro no chat interativo:", error);
     const errorMessage = error instanceof Error ? error.message : "Falha na comunicação com Groq";
     
     // Em caso de erro, retornar uma resposta de fallback
-    const fallbackResponse = "⚠️ Desculpe, não consegui processar sua mensagem. Verifique sua conexão e tente novamente.";
+    const fallbackResponse = `⚠️ Erro: ${errorMessage}`;
     chat.addMessage("assistant", fallbackResponse);
     
     return fallbackResponse;

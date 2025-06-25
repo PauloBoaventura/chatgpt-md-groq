@@ -35,14 +35,14 @@ export function registerChatCommand(plugin: Plugin) {
     icon: "message-circle",
     editorCallback: async (editor: Editor, ctx: MarkdownView | MarkdownFileInfo) => {
       let input: string = "";
-      
+
       try {
         // Obter as configurações do plugin
         const settings = (plugin as any).serviceLocator.getSettingsService().getSettings() as ChatGPT_MDSettings;
 
         // Obter o texto selecionado ou todo o conteúdo
         input = editor.getSelection() || editor.getValue();
-        
+
         if (!input.trim()) {
           new Notice("⚠️ Por favor, selecione um texto ou digite uma mensagem.");
           return;
@@ -84,12 +84,12 @@ export function registerChatCommand(plugin: Plugin) {
         if (response && response.fullString) {
           const output = response.fullString.replace(/^🤖\s*/, "").trim();
           chat.addMessage("assistant", output);
-          
+
           // Inserir resposta no editor
           const currentContent = editor.getValue();
           const newContent = currentContent + `\n\n👤: ${input}\n🤖: ${output}\n`;
           editor.setValue(newContent);
-          
+
           new Notice("✅ Resposta do Groq inserida!");
         } else {
           throw new Error("Resposta vazia da API");
@@ -99,11 +99,11 @@ export function registerChatCommand(plugin: Plugin) {
         console.error("Erro no chat interativo:", error);
         const errorMessage = error instanceof Error ? error.message : "Falha na comunicação com Groq";
         new Notice(`❌ Erro: ${errorMessage}`);
-        
+
         // Em caso de erro, adicionar uma resposta de fallback
         const fallbackResponse = "⚠️ Desculpe, não consegui processar sua mensagem. Verifique sua conexão e tente novamente.";
         chat.addMessage("assistant", fallbackResponse);
-        
+
         if (input) {
           const currentContent = editor.getValue();
           const newContent = currentContent + `\n\n👤: ${input}\n🤖: ${fallbackResponse}\n`;
@@ -123,4 +123,4 @@ export function registerChatCommand(plugin: Plugin) {
       new Notice("🧹 Histórico do chat limpo!");
     }
   });
-} 
+}

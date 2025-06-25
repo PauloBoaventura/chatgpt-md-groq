@@ -95,6 +95,61 @@ export default class ChatGPT_MD extends Plugin {
       }
     });
 
+    // Adicionar comando para testar o chatbot especificamente
+    this.addCommand({
+      id: 'test-chatbot-functionality',
+      name: 'Testar Funcionalidade do Chatbot',
+      callback: async () => {
+        try {
+          const settings = settingsService.getSettings();
+          console.log("🧪 Testando funcionalidade do chatbot...");
+          
+          // 1. Verificar configurações
+          if (!settings.groqApiKey) {
+            new Notice("❌ API Key Groq não configurada!");
+            return;
+          }
+          
+          console.log("✅ API Key encontrada");
+          
+          // 2. Testar configuração Groq
+          const groqService = this.serviceLocator.getAiApiService('groq') as any;
+          if (groqService && typeof groqService.testConfiguration === 'function') {
+            console.log("🔍 Testando configuração Groq...");
+            const configResult = await groqService.testConfiguration(settings);
+            
+            if (!configResult.success) {
+              new Notice("❌ " + configResult.message);
+              return;
+            }
+            
+            console.log("✅ Configuração Groq OK");
+          }
+          
+          // 3. Testar chamada real
+          console.log("🤖 Testando chamada do chatbot...");
+          const { handleChatInteraction, initializeChatController } = await import('./core/ChatController');
+          
+          // Inicializar o controller
+          initializeChatController(settings, this);
+          
+          // Fazer teste simples
+          const testResponse = await handleChatInteraction("Teste. Responda apenas 'OK'.", settings, this);
+          
+          if (testResponse && testResponse.trim()) {
+            new Notice("✅ Chatbot funcionando! Resposta: " + testResponse.substring(0, 50) + "...");
+            console.log("✅ Teste do chatbot bem-sucedido:", testResponse);
+          } else {
+            new Notice("❌ Chatbot retornou resposta vazia");
+          }
+          
+        } catch (error) {
+          console.error("❌ Erro no teste do chatbot:", error);
+          new Notice("❌ Erro no teste: " + error);
+        }
+      }
+    });
+
     // Adicionar comando para testar todos os tipos de log de desenvolvedor
     this.addCommand({
       id: 'test-all-log-types',
