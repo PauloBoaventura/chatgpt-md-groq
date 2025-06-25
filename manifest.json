@@ -1,7 +1,7 @@
 {
   "id": "Assist-Groq-Niky",
   "name": "Assist Groq Niky",
-  "version": "3.2.5",
+  "version": "5.0.0",
   "minAppVersion": "0.15.0",
   "description": "A seamless integration of ChatGPT, OpenRouter.ai and local LLMs via Ollama into Obsidian. Integrando a opção de utilizar a Key do Groq ao inves da Openai",
   "author": "Paulo Boaventura",
