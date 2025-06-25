@@ -103,49 +103,68 @@ export default class ChatGPT_MD extends Plugin {
         try {
           const settings = settingsService.getSettings();
           console.log("🧪 Testando funcionalidade do chatbot...");
+          console.log("🧪 Configurações disponíveis:", {
+            groqApiKey: !!settings.groqApiKey,
+            groqUrl: settings.groqUrl || "padrão",
+            groqModel: settings.groq?.model || "padrão"
+          });
           
-          // 1. Verificar configurações
-          if (!settings.groqApiKey) {
+          // 1. Verificar configurações básicas
+          if (!settings.groqApiKey || settings.groqApiKey.trim() === "") {
             new Notice("❌ API Key Groq não configurada!");
+            console.error("❌ API Key não encontrada nas configurações");
             return;
           }
           
-          console.log("✅ API Key encontrada");
+          if (!settings.groqApiKey.startsWith("gsk_")) {
+            new Notice("❌ API Key Groq em formato incorreto!");
+            console.error("❌ API Key não começa com 'gsk_'");
+            return;
+          }
           
-          // 2. Testar configuração Groq
+          console.log("✅ API Key válida encontrada");
+          
+          // 2. Testar configuração Groq diretamente
           const groqService = this.serviceLocator.getAiApiService('groq') as any;
           if (groqService && typeof groqService.testConfiguration === 'function') {
             console.log("🔍 Testando configuração Groq...");
             const configResult = await groqService.testConfiguration(settings);
             
             if (!configResult.success) {
-              new Notice("❌ " + configResult.message);
+              new Notice("❌ " + configResult.message.split('\n')[0]);
+              console.error("❌ Teste de configuração falhou:", configResult.message);
               return;
             }
             
-            console.log("✅ Configuração Groq OK");
+            console.log("✅ Configuração Groq OK:", configResult.message);
           }
           
-          // 3. Testar chamada real
-          console.log("🤖 Testando chamada do chatbot...");
+          // 3. Testar chamada real do chatbot
+          console.log("🤖 Testando chamada real do chatbot...");
           const { handleChatInteraction, initializeChatController } = await import('./core/ChatController');
           
-          // Inicializar o controller
+          // Inicializar o controller com configurações atuais
           initializeChatController(settings, this);
           
-          // Fazer teste simples
-          const testResponse = await handleChatInteraction("Teste. Responda apenas 'OK'.", settings, this);
+          // Fazer teste simples com timeout
+          const testPromise = handleChatInteraction("Teste de conectividade. Responda apenas 'OK'.", settings, this);
+          const timeoutPromise = new Promise((_, reject) => 
+            setTimeout(() => reject(new Error("Timeout de 30 segundos")), 30000)
+          );
           
-          if (testResponse && testResponse.trim()) {
+          const testResponse = await Promise.race([testPromise, timeoutPromise]) as string;
+          
+          if (testResponse && testResponse.trim() && !testResponse.includes("❌")) {
             new Notice("✅ Chatbot funcionando! Resposta: " + testResponse.substring(0, 50) + "...");
             console.log("✅ Teste do chatbot bem-sucedido:", testResponse);
           } else {
-            new Notice("❌ Chatbot retornou resposta vazia");
+            new Notice("❌ Chatbot com problemas: " + (testResponse || "Resposta vazia"));
+            console.error("❌ Resposta problemática:", testResponse);
           }
           
         } catch (error) {
           console.error("❌ Erro no teste do chatbot:", error);
-          new Notice("❌ Erro no teste: " + error);
+          new Notice("❌ Erro no teste: " + (error as Error).message);
         }
       }
     });
@@ -280,10 +299,102 @@ export default class ChatGPT_MD extends Plugin {
       }
     });
 
+    // Adicionar comando de diagnóstico completo de problemas
+    this.addCommand({
+      id: 'chatbot-diagnostic',
+      name: 'Diagnóstico Completo de Problemas do Chatbot',
+      callback: async () => {
+        try {
+          const settings = settingsService.getSettings();
+          console.log("🔍 === DIAGNÓSTICO COMPLETO DO CHATBOT ===");
+          
+          // 1. Verificar estrutura de configurações
+          console.log("📋 1. Verificando estrutura das configurações...");
+          console.log("Configurações disponíveis:", {
+            groqApiKey: !!settings.groqApiKey,
+            groqApiKeyLength: settings.groqApiKey?.length || 0,
+            groqApiKeyFormat: settings.groqApiKey?.substring(0, 10) + "..." || "NENHUMA",
+            groqUrl: settings.groqUrl || "não definida",
+            groqConfig: !!settings.groq,
+            groqModel: settings.groq?.model || "não definido"
+          });
+          
+          if (!settings.groqApiKey) {
+            new Notice("❌ ERRO CRÍTICO: API Key Groq não configurada!");
+            console.error("❌ API Key ausente - configure nas configurações do plugin");
+            return;
+          }
+          
+          if (!settings.groqApiKey.startsWith("gsk_")) {
+            new Notice("❌ ERRO CRÍTICO: API Key em formato incorreto!");
+            console.error("❌ API Key deve começar com 'gsk_'");
+            return;
+          }
+          
+          // 2. Testar serviços do plugin
+          console.log("🔧 2. Verificando serviços do plugin...");
+          const serviceLocator = this.serviceLocator;
+          const groqService = serviceLocator?.getAiApiService('groq');
+          
+          if (!serviceLocator) {
+            new Notice("❌ ERRO CRÍTICO: ServiceLocator não disponível!");
+            return;
+          }
+          
+          if (!groqService) {
+            new Notice("❌ ERRO CRÍTICO: GroqService não disponível!");
+            return;
+          }
+          
+          console.log("✅ Serviços do plugin OK");
+          
+          // 3. Testar conectividade com Groq
+          console.log("🌐 3. Testando conectividade com Groq...");
+          const testResult = await (groqService as any).testConfiguration(settings);
+          
+          if (!testResult.success) {
+            new Notice("❌ ERRO DE CONECTIVIDADE: " + testResult.message.split('\n')[0]);
+            console.error("❌ Falha na conectividade:", testResult.message);
+            return;
+          }
+          
+          console.log("✅ Conectividade com Groq OK");
+          
+          // 4. Testar inicialização do ChatController
+          console.log("🤖 4. Testando inicialização do ChatController...");
+          try {
+            const { initializeChatController, handleChatInteraction } = await import('./core/ChatController');
+            initializeChatController(settings, this);
+            console.log("✅ ChatController inicializado");
+            
+            // 5. Testar chamada real
+            console.log("📞 5. Testando chamada real da API...");
+            const testResponse = await handleChatInteraction("Teste de diagnóstico. Responda apenas 'DIAGNÓSTICO OK'.", settings, this);
+            
+            if (testResponse && testResponse.trim() && !testResponse.includes("❌")) {
+              new Notice("✅ DIAGNÓSTICO COMPLETO: Chatbot funcionando perfeitamente!");
+              console.log("✅ Resposta do teste:", testResponse);
+            } else {
+              new Notice("❌ PROBLEMA NA RESPOSTA: " + (testResponse || "Resposta vazia"));
+              console.error("❌ Problema na resposta:", testResponse);
+            }
+            
+          } catch (controllerError) {
+            new Notice("❌ ERRO NO CHATCONTROLLER: " + controllerError);
+            console.error("❌ Erro no ChatController:", controllerError);
+          }
+          
+        } catch (error) {
+          console.error("❌ ERRO GERAL NO DIAGNÓSTICO:", error);
+          new Notice("❌ Erro geral: " + error);
+        }
+      }
+    });
+
     // Adicionar comando de diagnóstico completo de conectividade
     this.addCommand({
       id: 'groq-connectivity-diagnostic',
-      name: 'Diagnóstico Completo de Conectividade Groq',
+      name: 'Diagnóstico de Conectividade Groq (Simples)',
       callback: async () => {
         try {
           const settings = settingsService.getSettings();

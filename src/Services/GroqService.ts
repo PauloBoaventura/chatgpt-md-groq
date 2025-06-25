@@ -90,9 +90,9 @@ export class GroqService extends BaseAiService implements IAiApiService {
   }
 
   getApiKeyFromSettings(settings: ChatGPT_MDSettings): string {
-    // Tentar múltiplas formas de obter a API key
+    // Prioritizar a API key direta das configurações
     const apiKey = settings.groqApiKey || 
-                   (settings as any).groq?.apiKey || 
+                   settings.groq?.apiKey || 
                    this.apiAuthService.getApiKey(settings, AI_SERVICE_GROQ);
     
     console.log("[GroqService] API Key obtida:", apiKey ? apiKey.substring(0, 10) + "..." : "NENHUMA");

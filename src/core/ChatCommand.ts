@@ -123,4 +123,35 @@ export function registerChatCommand(plugin: Plugin) {
       new Notice("🧹 Histórico do chat limpo!");
     }
   });
+
+  plugin.addCommand({
+    id: 'interactive-chat',
+    name: 'Chat Interativo com Groq',
+    editorCallback: async (editor: Editor, view: MarkdownView) => {
+      try {
+        // Obter configurações do plugin
+        const settingsService = (plugin as any).serviceLocator?.getSettingsService();
+        if (!settingsService) {
+          new Notice("❌ Serviço de configurações não disponível");
+          return;
+        }
+
+        const settings = settingsService.getSettings();
+
+        // Verificar se a API Key está configurada
+        if (!settings.groqApiKey) {
+          new Notice("❌ Configure a API Key do Groq nas configurações do plugin");
+          return;
+        }
+
+        // Inicializar o ChatController com as configurações atuais
+        const { initializeChatController } = await import('./ChatController');
+        initializeChatController(settings, plugin);
+
+      } catch (error) {
+        console.error("Erro ao iniciar o chat interativo:", error);
+        new Notice(`❌ Erro ao iniciar o chat interativo: ${error.message}`);
+      }
+    }
+  });
 }

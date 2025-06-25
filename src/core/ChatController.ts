@@ -58,14 +58,18 @@ export async function handleChatInteraction(input: string, settings?: ChatGPT_MD
       throw new Error("❌ Plugin não disponível. Inicialize o ChatController primeiro.");
     }
 
-    // Verificar se o GroqService foi inicializado
-    if (!groqService) {
-      console.log("[ChatController] GroqService não inicializado, criando novo...");
-      initializeChatController(settingsToUse, pluginToUse);
-    }
+    // Sempre reinicializar o GroqService com as configurações atuais
+    console.log("[ChatController] Inicializando/Reinicializando GroqService...");
+    initializeChatController(settingsToUse, pluginToUse);
 
     if (!groqService) {
       throw new Error("❌ Falha ao inicializar GroqService");
+    }
+
+    // Verificar se a API Key está configurada antes de prosseguir
+    const apiKey = groqService.getApiKeyFromSettings(settingsToUse);
+    if (!apiKey || apiKey.trim() === "") {
+      throw new Error("❌ API Key Groq não configurada. Verifique as configurações do plugin.");
     }
 
     console.log("[ChatController] Processando input:", input.substring(0, 50) + "...");
