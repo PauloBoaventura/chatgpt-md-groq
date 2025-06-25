@@ -197,6 +197,7 @@ export default class ChatGPT_MD extends Plugin {
           const groqService = this.serviceLocator.getAiApiService('groq') as any;
           
           if (groqService && typeof groqService.testConfiguration === 'function') {
+            new Notice("🔍 Testando conectividade com Groq...");
             const result = await groqService.testConfiguration(settings);
             
             if (result.success) {
@@ -213,6 +214,78 @@ export default class ChatGPT_MD extends Plugin {
         } catch (error) {
           console.error("❌ Erro ao testar configuração da Groq:", error);
           new Notice("❌ Erro ao testar configuração da Groq: " + error);
+        }
+      }
+    });
+
+    // Adicionar comando de diagnóstico completo de conectividade
+    this.addCommand({
+      id: 'groq-connectivity-diagnostic',
+      name: 'Diagnóstico Completo de Conectividade Groq',
+      callback: async () => {
+        try {
+          const settings = settingsService.getSettings();
+          console.log("🔍 Iniciando diagnóstico completo de conectividade Groq...");
+          
+          // 1. Verificar configurações básicas
+          console.log("📋 1. Verificando configurações básicas...");
+          const apiKey = (settings as any).groqApiKey || "";
+          
+          if (!apiKey) {
+            new Notice("❌ API Key Groq não configurada!");
+            console.error("❌ API Key Groq não encontrada nas configurações");
+            return;
+          }
+          
+          console.log("✅ API Key encontrada:", apiKey.substring(0, 10) + "...");
+          
+          if (!apiKey.startsWith("gsk_")) {
+            new Notice("⚠️ API Key pode estar em formato incorreto");
+            console.warn("⚠️ API Key não inicia com 'gsk_'");
+          }
+          
+          // 2. Testar conectividade básica
+          console.log("🌐 2. Testando conectividade básica com Groq...");
+          try {
+            const testResponse = await fetch("https://api.groq.com", {
+              method: "HEAD",
+              signal: AbortSignal.timeout(5000)
+            });
+            console.log("✅ Conectividade básica OK, status:", testResponse.status);
+          } catch (error) {
+            console.error("❌ Falha na conectividade básica:", error);
+            new Notice("❌ Sem conectividade com api.groq.com");
+            return;
+          }
+          
+          // 3. Testar endpoint de modelos
+          console.log("📊 3. Testando endpoint de modelos...");
+          const groqService = this.serviceLocator.getAiApiService('groq') as any;
+          const result = await groqService.testConfiguration(settings);
+          
+          // 4. Testar chamada real da API
+          if (result.success) {
+            console.log("🤖 4. Testando chamada real da API...");
+            try {
+              const testMessage = await groqService.chatWithFallback(
+                "Teste de conectividade. Responda apenas 'OK'.",
+                settings,
+                this
+              );
+              console.log("✅ Teste de chamada real bem-sucedido:", testMessage);
+              new Notice("✅ Diagnóstico completo: Groq funcionando perfeitamente!");
+            } catch (error) {
+              console.error("❌ Falha na chamada real:", error);
+              new Notice("❌ Falha na chamada da API: " + error);
+            }
+          } else {
+            console.error("❌ Falha no teste de configuração:", result.message);
+            new Notice("❌ " + result.message);
+          }
+          
+        } catch (error) {
+          console.error("❌ Erro no diagnóstico:", error);
+          new Notice("❌ Erro no diagnóstico: " + error);
         }
       }
     });

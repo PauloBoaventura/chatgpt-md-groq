@@ -243,39 +243,79 @@ export class GroqService extends BaseAiService implements IAiApiService {
   async testConfiguration(settings: ChatGPT_MDSettings): Promise<{ success: boolean; message: string }> {
     try {
       const apiKey = this.getApiKeyFromSettings(settings);
-      const config = this.getDefaultConfig();
       
-      if (!apiKey) {
+      if (!apiKey || apiKey.trim() === "") {
         return { success: false, message: "❌ API Key da Groq não está configurada no plugin." };
       }
 
-      console.log("[GroqService] Testing configuration:", {
-        apiKey: apiKey.substring(0, 10) + "...",
-        model: config.model,
-        url: config.url,
-        endpoint: this.getApiEndpoint(config)
+      // Validar formato da API Key
+      if (!apiKey.startsWith("gsk_")) {
+        return { success: false, message: "❌ API Key da Groq parece estar em formato incorreto. Deve começar com 'gsk_'." };
+      }
+
+      const endpoint = "https://api.groq.com/openai/v1/models";
+      
+      console.log("[GroqService] Testing connection to:", endpoint);
+      console.log("[GroqService] API Key format:", apiKey.substring(0, 10) + "...");
+
+      // Fazer uma requisição simples para testar conectividade
+      const headers = {
+        "Authorization": `Bearer ${apiKey}`,
+        "Content-Type": "application/json",
+        "User-Agent": "ChatGPT-MD-Plugin/1.0"
+      };
+
+      const response = await fetch(endpoint, {
+        method: "GET",
+        headers: headers,
+        signal: AbortSignal.timeout(10000) // 10 segundos timeout
       });
 
-      // Test with a simple request
-      const testMessages: Message[] = [
-        { role: "user", content: "Hello, this is a test message." }
-      ];
+      console.log("[GroqService] Response status:", response.status);
+      console.log("[GroqService] Response headers:", Object.fromEntries(response.headers.entries()));
 
-      const { payload, headers } = this.prepareApiCall(apiKey, testMessages, config);
-      
-      console.log("[GroqService] Test payload:", payload);
-      console.log("[GroqService] Test headers:", { ...headers, Authorization: "Bearer ***" });
+      if (!response.ok) {
+        const errorText = await response.text();
+        console.error("[GroqService] Error response:", errorText);
+        
+        if (response.status === 401) {
+          return { success: false, message: "❌ API Key da Groq é inválida. Verifique se está correta." };
+        } else if (response.status === 403) {
+          return { success: false, message: "❌ Acesso negado. Verifique se a API Key tem as permissões necessárias." };
+        } else if (response.status >= 500) {
+          return { success: false, message: "❌ Servidor da Groq indisponível no momento. Tente novamente mais tarde." };
+        } else {
+          return { success: false, message: `❌ Erro HTTP ${response.status}: ${errorText}` };
+        }
+      }
+
+      const data = await response.json();
+      console.log("[GroqService] Available models:", data.data?.length || 0);
 
       return { 
         success: true, 
-        message: `✅ Configuração da Groq válida!\nModelo: ${config.model}\nURL: ${config.url}\nEndpoint: ${this.getApiEndpoint(config)}` 
+        message: `✅ Conexão com Groq estabelecida com sucesso!\n📊 ${data.data?.length || 0} modelos disponíveis\n🔗 Endpoint: ${endpoint}` 
       };
-    } catch (error) {
-      console.error("[GroqService] Configuration test failed:", error);
-      return { 
-        success: false, 
-        message: `❌ Erro na configuração da Groq: ${error}` 
-      };
+
+    } catch (error: any) {
+      console.error("[GroqService] Connection test failed:", error);
+      
+      if (error.name === "TimeoutError" || error.name === "AbortError") {
+        return { 
+          success: false, 
+          message: "❌ Timeout na conexão com a Groq. Verifique sua conexão com a internet." 
+        };
+      } else if (error.message.includes("fetch")) {
+        return { 
+          success: false, 
+          message: "❌ Erro de rede ao conectar com a Groq. Verifique sua conexão com a internet." 
+        };
+      } else {
+        return { 
+          success: false, 
+          message: `❌ Erro na configuração da Groq: ${error.message || error}` 
+        };
+      }
     }
   }
 
@@ -290,13 +330,20 @@ export class GroqService extends BaseAiService implements IAiApiService {
     fallbackModel: string = "mixtral-8x7b-32768"
   ): Promise<string> {
     const apiKey = this.getApiKeyFromSettings(settings);
+    
+    if (!apiKey || apiKey.trim() === "") {
+      throw new Error("❌ API Key Groq ausente. Configure nas configurações do plugin.");
+    }
+
+    if (!apiKey.startsWith("gsk_")) {
+      throw new Error("❌ API Key Groq inválida. Deve começar com 'gsk_'.");
+    }
+
     const endpoint = "https://api.groq.com/openai/v1/chat/completions";
     const modelToUse = model || (settings as any).groqModel || DEFAULT_GROQ_CONFIG.model;
     const max_tokens = 512;
     const temperature = 0.7;
     const stream = false;
-
-    if (!apiKey) throw new Error("❌ API Key Groq ausente.");
 
     const payload = {
       model: modelToUse,
@@ -311,7 +358,8 @@ export class GroqService extends BaseAiService implements IAiApiService {
 
     const headers = {
       "Authorization": `Bearer ${apiKey}`,
-      "Content-Type": "application/json"
+      "Content-Type": "application/json",
+      "User-Agent": "ChatGPT-MD-Plugin/1.0"
     };
 
     console.log("🔎 [Groq] Endpoint:", endpoint);
@@ -319,36 +367,84 @@ export class GroqService extends BaseAiService implements IAiApiService {
     console.log("🔎 [Groq] Payload:", payload);
 
     const start = Date.now();
-    let response, text, data;
-
+    
     try {
-      response = await fetch(endpoint, {
+      console.log("🚀 [Groq] Iniciando requisição...");
+      
+      const response = await fetch(endpoint, {
         method: "POST",
         headers,
-        body: JSON.stringify(payload)
+        body: JSON.stringify(payload),
+        signal: AbortSignal.timeout(30000) // 30 segundos timeout
       });
-      text = await response.text();
+
+      const text = await response.text();
       const duration = Date.now() - start;
+      
       console.log("⏱️ [Groq] Latência:", duration, "ms");
       console.log("🔎 [Groq] Status HTTP:", response.status);
-      console.log("🔎 [Groq] Resposta:", text);
-
+      console.log("🔎 [Groq] Response Headers:", Object.fromEntries(response.headers.entries()));
+      
       if (!response.ok) {
-        throw new Error(`Groq API ERROR ${response.status}: ${text}`);
+        console.error("🔎 [Groq] Error Response Body:", text);
+        
+        let errorMessage = `Groq API ERROR ${response.status}`;
+        try {
+          const errorData = JSON.parse(text);
+          errorMessage += `: ${errorData.error?.message || text}`;
+        } catch {
+          errorMessage += `: ${text}`;
+        }
+        
+        throw new Error(errorMessage);
       }
 
-      data = JSON.parse(text);
-      console.log("✅ Groq Resposta:", { model: modelToUse, ...data });
-      return data.choices?.[0]?.message?.content ?? "⚠️ Sem resposta da IA.";
+      const data = JSON.parse(text);
+      console.log("✅ Groq Resposta válida recebida");
+      
+      const content = data.choices?.[0]?.message?.content;
+      if (!content) {
+        throw new Error("Resposta da API Groq não contém conteúdo válido");
+      }
+      
+      return content;
+      
     } catch (error: any) {
+      const duration = Date.now() - start;
+      
+      console.error(`❌ [Groq] Erro após ${duration}ms com modelo ${modelToUse}:`, {
+        error: error.message,
+        type: error.name,
+        stack: error.stack
+      });
+
       LogHelperDetailed.logError(plugin, error, "Erro na chamada da API Groq", {
         operation: "groq_api_call_failed",
         requestBody: payload,
-        metadata: { model: modelToUse, endpoint: endpoint },
+        metadata: { 
+          model: modelToUse, 
+          endpoint: endpoint,
+          duration: duration,
+          errorType: error.name
+        },
       });
 
-      console.error(`❌ [Groq] Erro com modelo ${modelToUse}:`, error.message);
+      // Tratamento específico por tipo de erro
+      if (error.name === "TimeoutError" || error.name === "AbortError") {
+        throw new Error("❌ Timeout na conexão com Groq. Verifique sua internet.");
+      } else if (error.message.includes("fetch") || error.message.includes("network")) {
+        throw new Error("❌ Erro de rede ao conectar com Groq. Verifique sua conexão.");
+      } else if (error.message.includes("401")) {
+        throw new Error("❌ API Key Groq inválida. Verifique nas configurações.");
+      } else if (error.message.includes("403")) {
+        throw new Error("❌ Acesso negado pela Groq. Verifique permissões da API Key.");
+      } else if (error.message.includes("429")) {
+        throw new Error("❌ Limite de taxa excedido na Groq. Aguarde antes de tentar novamente.");
+      } else if (error.message.includes("500") || error.message.includes("502") || error.message.includes("503")) {
+        throw new Error("❌ Servidor Groq indisponível. Tente novamente mais tarde.");
+      }
 
+      // Tentar fallback se disponível
       if (modelToUse !== fallbackModel && fallbackModel) {
         console.warn(`⚠️ [Groq] Tentando fallback com modelo: ${fallbackModel}`);
         return this.chatWithFallback(prompt, settings, plugin, fallbackModel, "");
